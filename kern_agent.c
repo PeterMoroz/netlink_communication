@@ -13,6 +13,20 @@
 struct sock *nl_sock = NULL;
 struct task_struct* send_thread = NULL;
 
+
+static void on_recv_message(struct sk_buff *skb)
+{
+	struct nlmsghdr *nlh = NULL;
+	nlh = (struct nlmsghdr *)skb->data;
+	pr_info("received message - sender PID: %d, payload: '%s'\n",
+		nlh->nlmsg_pid, (char *)nlmsg_data(nlh));
+}
+
+static struct netlink_kernel_cfg nl_cfg = 
+{
+	.input = on_recv_message,
+};
+
 void send_message(const char* message, size_t length)
 {
 	struct sk_buff *skb = NULL;
@@ -56,10 +70,11 @@ static int sender(void* arg)
 }
 
 
+
 static int __init kern_agent_init(void)
 {
 	pr_info("kern_agent_init\n");
-	nl_sock = netlink_kernel_create(&init_net, MY_SOCK, NULL);
+	nl_sock = netlink_kernel_create(&init_net, MY_SOCK, &nl_cfg);
 	if (nl_sock == NULL)
 	{
 		pr_err("could not create netlink socket\n");
