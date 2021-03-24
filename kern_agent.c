@@ -30,7 +30,7 @@ static unsigned nl_packet_seq;
 
 LIST_HEAD(nl_packet_list);
 DEFINE_MUTEX(packet_list_mutex);
-static unsigned list_length;
+static unsigned list_length;	/* just for statistics */
 
 
 static void on_recv_message(struct sk_buff *skb)
@@ -42,8 +42,7 @@ static void on_recv_message(struct sk_buff *skb)
 
 	nlh = (struct nlmsghdr *)skb->data;
 	packet = (struct nl_packet*)nlmsg_data(nlh);
-	pr_info("received message - sender PID: %d, packet ID: %u\n",
-		nlh->nlmsg_pid, packet->id);
+	pr_info("recv: sender PID %d, packet ID %u\n", nlh->nlmsg_pid, packet->id);
 		
 	mutex_lock(&packet_list_mutex);
 	list_for_each(lst_iter, &nl_packet_list)
@@ -59,7 +58,7 @@ static void on_recv_message(struct sk_buff *skb)
 	}
 	mutex_unlock(&packet_list_mutex);
 	
-	pr_info("length of packet's list: %u\n", list_length);
+	pr_info("recv: length of packet's list %u\n", list_length);
 }
 
 static struct netlink_kernel_cfg nl_cfg = 
@@ -73,16 +72,30 @@ void send_message(const char* message, size_t length)
 	struct nlmsghdr *nlh = NULL;
 	int ret;
 	
-	skb = nlmsg_new(length, GFP_KERNEL);
+	struct nl_packet_list_item* item = kmalloc(sizeof(struct nl_packet_list_item), GFP_KERNEL);
+	item->packet.id = nl_packet_seq++;
+	memcpy(item->packet.data, message, length);
+	item->packet.data_length = length;
+	INIT_LIST_HEAD(&item->link);
+	
+	mutex_lock(&packet_list_mutex);
+	list_add(&item->link, &nl_packet_list);
+	list_length++;
+	mutex_unlock(&packet_list_mutex);
+	
+	pr_info("send: length of packet's list %u\n", list_length);
+	
+	skb = nlmsg_new(sizeof(struct nl_packet), GFP_KERNEL);
 	if (skb == NULL)
 	{
 		pr_err("could not allocate sk buffer\n");
 		return;
 	}
 	
-	pr_info("send packet, length = %lu\n", length);
-	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, length, 0);
-	memcpy(nlmsg_data(nlh), message, length);
+	pr_info("send: packet id = %u, total packet length = %lu\n", 
+			item->packet.id, sizeof(struct nl_packet));
+	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, sizeof(struct nl_packet), 0);
+	memcpy(nlmsg_data(nlh), &item->packet, sizeof(struct nl_packet));
 	
 	ret = nlmsg_multicast(nl_sock, skb, 0, MY_GROUP, 0);
 	if (ret < 0)
@@ -91,24 +104,17 @@ void send_message(const char* message, size_t length)
 
 static int sender(void* arg)
 {
-	int i = 0;	
+	int i = 0;
+	
+	char msg_buffer[256];
+	size_t msg_length;
 	
 	while (!kthread_should_stop())
 	{	
-		struct nl_packet_list_item* item = kmalloc(sizeof(struct nl_packet_list_item), GFP_KERNEL);
-		item->packet.id = nl_packet_seq++;
-		sprintf(item->packet.data, "Message from kernel %02d", i++);
-		item->packet.data_length = strlen(item->packet.data);
-		INIT_LIST_HEAD(&item->link);
+		sprintf(msg_buffer, "Message from kernel %02d", i++);
+		msg_length = strlen(msg_buffer);
 		
-		mutex_lock(&packet_list_mutex);
-		list_add(&item->link, &nl_packet_list);
-		list_length++;
-		mutex_unlock(&packet_list_mutex);
-		
-		pr_info("length of packet's list: %u\n", list_length);
-		pr_info("message payload '%s', length %u\n", item->packet.data, item->packet.data_length);
-		send_message((char*)&item->packet, NL_PACKET_SIZE);		
+		send_message(msg_buffer, msg_length);
 				
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(HZ);
@@ -142,12 +148,23 @@ static int __init kern_agent_init(void)
 
 static void __exit kern_agent_exit(void)
 {
+	struct list_head* lst_iter = NULL;
+	struct nl_packet_list_item* lst_item = NULL;	
+	
 	int ret;
 	ret = kthread_stop(send_thread);
 	if (ret < 0)
 		pr_err("error when sender thread stopped, returned %d\n", ret);
 	
 	netlink_kernel_release(nl_sock);
+	
+	list_for_each(lst_iter, &nl_packet_list)
+	{
+		lst_item = list_entry(lst_iter, struct nl_packet_list_item, link);
+		list_del(&lst_item->link);
+		kfree(lst_item);
+	}	
+	
 	pr_info("kern_agent_exit\n");
 }
 
