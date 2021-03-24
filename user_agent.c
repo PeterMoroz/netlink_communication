@@ -14,9 +14,6 @@
 #define MY_SOCK NETLINK_USERSOCK
 #define MY_GROUP 21
 
-/* 
-static int message_id;
-*/
 
 static unsigned int packet_id = 0xFFFFFFFF;
 
@@ -62,10 +59,6 @@ void recv_message(int sock)
 	
 	char rx_buffer[NL_PACKET_SIZE];
 	int ret;
-	/*
-	const char* msg_payload = NULL;
-	const char* p = NULL;
-	*/
 	const struct nl_packet* packet = NULL;
 	
 	iov.iov_base = (void *)rx_buffer;
@@ -80,25 +73,7 @@ void recv_message(int sock)
 	if (ret < 0)
 		perror("recvmsg: ");
 	else
-	{
-		/* 		
-		msg_payload = (const char*)NLMSG_DATA((struct nlmsghdr*)rx_buffer);
-		printf("received messae, payload: '%s'\n", msg_payload);
-		
-		p = msg_payload;
-		message_id = -1;
-		
-		while (*p)
-		{
-			if (isdigit(*p))
-			{
-				message_id = atoi(p);
-				break;
-			}
-			p++;
-		}
-		*/
-		
+	{	
 		packet = (const struct nl_packet*)NLMSG_DATA((struct nlmsghdr*)rx_buffer);
 		printf("received packet: ID = %u, data length = %u, data: '%s'\n", 
 			packet->id, packet->data_length, packet->data);
@@ -134,9 +109,6 @@ void send_message(int sock, const char* message, size_t length)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	
-	/*
-	printf("sending message, payload '%s', length %lu\n", message, length);
-	*/
 	ret = sendmsg(sock, &msg, 0);
 	if (ret < 0)
 		perror("sendmsg: ");
@@ -147,10 +119,6 @@ void send_message(int sock, const char* message, size_t length)
 int main(int argc, char** argv)
 {
 	int nls;
-	/* 
-	char tx_buffer[64];
-	size_t len;
-	*/
 	struct nl_packet packet;
 	
 	nls = open_nl_sock();
@@ -164,17 +132,7 @@ int main(int argc, char** argv)
 	{
 		recv_message(nls);
 		usleep(10);
-		
-		/*
-		if (message_id != -1)
-		{
-			memset(tx_buffer, 0, sizeof(tx_buffer));
-			sprintf(tx_buffer, "Received message, ID %02d", message_id);
-			len = strlen(tx_buffer);
-			send_message(nls, tx_buffer, len);
-		}
-		*/
-		
+				
 		memset(&packet, 0, sizeof(packet));
 		packet.id = packet_id;	/* just confirm receiving, no payload */
 		send_message(nls, (const char*)&packet, sizeof(packet));

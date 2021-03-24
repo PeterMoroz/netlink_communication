@@ -41,15 +41,10 @@ static void on_recv_message(struct sk_buff *skb)
 	struct nl_packet_list_item* lst_item = NULL;
 
 	nlh = (struct nlmsghdr *)skb->data;
-	/* 
-	pr_info("received message - sender PID: %d, payload: '%s'\n",
-		nlh->nlmsg_pid, (char *)nlmsg_data(nlh)); */
-
 	packet = (struct nl_packet*)nlmsg_data(nlh);
 	pr_info("received message - sender PID: %d, packet ID: %u\n",
 		nlh->nlmsg_pid, packet->id);
 		
-	/* TO DO: lock mutex */
 	mutex_lock(&packet_list_mutex);
 	list_for_each(lst_iter, &nl_packet_list)
 	{
@@ -85,7 +80,6 @@ void send_message(const char* message, size_t length)
 		return;
 	}
 	
-	/* pr_info("sending message '%s' (length = %lu)\n", message, length); */
 	pr_info("send packet, length = %lu\n", length);
 	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, length, 0);
 	memcpy(nlmsg_data(nlh), message, length);
@@ -97,21 +91,10 @@ void send_message(const char* message, size_t length)
 
 static int sender(void* arg)
 {
-/*	
-	char tx_buffer[64];
-	size_t msg_length;
-*/
 	int i = 0;	
 	
 	while (!kthread_should_stop())
-	{
-		/*
-		memset(tx_buffer, 0, sizeof(tx_buffer));
-		sprintf(tx_buffer, "Message from kernel %02d", i++);
-		msg_length = strlen(tx_buffer);
-		send_message(tx_buffer, msg_length);
-		*/
-		
+	{	
 		struct nl_packet_list_item* item = kmalloc(sizeof(struct nl_packet_list_item), GFP_KERNEL);
 		item->packet.id = nl_packet_seq++;
 		sprintf(item->packet.data, "Message from kernel %02d", i++);
