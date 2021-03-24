@@ -92,14 +92,21 @@ void send_message(const char* message, size_t length)
 		return;
 	}
 	
+	NETLINK_CB(skb).dst_group = 0;
+	
 	pr_info("send: packet id = %u, total packet length = %lu\n", 
 			item->packet.id, sizeof(struct nl_packet));
 	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, sizeof(struct nl_packet), 0);
 	memcpy(nlmsg_data(nlh), &item->packet, sizeof(struct nl_packet));
 	
+	/*
 	ret = nlmsg_multicast(nl_sock, skb, 0, MY_GROUP, 0);
 	if (ret < 0)
 		pr_err("could not send multicast message, returned %d\n", ret);
+		*/
+	ret = nlmsg_unicast(nl_sock, skb, 555);
+	if (ret < 0)
+		pr_err("could not send unnicast message, returned %d\n", ret);
 }
 
 static int sender(void* arg)
@@ -158,12 +165,14 @@ static void __exit kern_agent_exit(void)
 	
 	netlink_kernel_release(nl_sock);
 	
+	/* TO DO: fix wrong list cleaning which leads to crash when module is unloaded.
 	list_for_each(lst_iter, &nl_packet_list)
 	{
 		lst_item = list_entry(lst_iter, struct nl_packet_list_item, link);
 		list_del(&lst_item->link);
 		kfree(lst_item);
-	}	
+	}
+*/	
 	
 	pr_info("kern_agent_exit\n");
 }
