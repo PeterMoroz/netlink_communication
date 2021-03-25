@@ -1,6 +1,7 @@
 #ifndef _MESSAGING_H_
 #define _MESSAGING_H_
 
+#define USER_AGENT_ID 2021
 
 #define NL_PACKET_SIZE 1024
 #define NL_DATA_SIZE ((NL_PACKET_SIZE) - (sizeof(unsigned int) + sizeof(unsigned short)))

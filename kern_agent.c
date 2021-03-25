@@ -10,10 +10,6 @@
 
 #include "messaging.h"
 
-#define MY_SOCK NETLINK_USERSOCK
-#define MY_GROUP 21
-
-
 
 struct sock *nl_sock = NULL;
 struct task_struct* send_thread = NULL;
@@ -99,12 +95,7 @@ void send_message(const char* message, size_t length)
 	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, sizeof(struct nl_packet), 0);
 	memcpy(nlmsg_data(nlh), &item->packet, sizeof(struct nl_packet));
 	
-	/*
-	ret = nlmsg_multicast(nl_sock, skb, 0, MY_GROUP, 0);
-	if (ret < 0)
-		pr_err("could not send multicast message, returned %d\n", ret);
-		*/
-	ret = nlmsg_unicast(nl_sock, skb, 555);
+	ret = nlmsg_unicast(nl_sock, skb, USER_AGENT_ID);
 	if (ret < 0)
 		pr_err("could not send unnicast message, returned %d\n", ret);
 }
@@ -135,7 +126,7 @@ static int sender(void* arg)
 static int __init kern_agent_init(void)
 {
 	pr_info("kern_agent_init\n");
-	nl_sock = netlink_kernel_create(&init_net, MY_SOCK, &nl_cfg);
+	nl_sock = netlink_kernel_create(&init_net, NETLINK_USERSOCK, &nl_cfg);
 	if (nl_sock == NULL)
 	{
 		pr_err("could not create netlink socket\n");
@@ -165,14 +156,14 @@ static void __exit kern_agent_exit(void)
 	
 	netlink_kernel_release(nl_sock);
 	
-	/* TO DO: fix wrong list cleaning which leads to crash when module is unloaded.
+start_loop:
 	list_for_each(lst_iter, &nl_packet_list)
 	{
 		lst_item = list_entry(lst_iter, struct nl_packet_list_item, link);
 		list_del(&lst_item->link);
 		kfree(lst_item);
+		goto start_loop;
 	}
-*/	
 	
 	pr_info("kern_agent_exit\n");
 }

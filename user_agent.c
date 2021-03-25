@@ -10,19 +10,14 @@
 
 #include "messaging.h"
 
-
-#define MY_SOCK NETLINK_USERSOCK
-#define MY_GROUP 21
-
-
 static unsigned int packet_id = 0xFFFFFFFF;
 
 int open_nl_sock(void)
 {
-	int sock, group;
+	int sock;
 	struct sockaddr_nl addr;
 	
-	sock = socket(AF_NETLINK, SOCK_RAW, MY_SOCK);
+	sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_USERSOCK);
 	if (sock < 0)
 	{
 		perror("socket: ");
@@ -31,8 +26,7 @@ int open_nl_sock(void)
 	
 	memset((void*)&addr, 0, sizeof(addr));
 	addr.nl_family = AF_NETLINK;
-	/* addr.nl_pid = getpid(); */
-	addr.nl_pid = 555;
+	addr.nl_pid = USER_AGENT_ID;
 	
 	if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0)
 	{
@@ -40,17 +34,7 @@ int open_nl_sock(void)
 		close(sock);
 		return -1;
 	}
-	
-	/*
-	group = MY_GROUP;
-	if (setsockopt(sock, 270, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) < 0)
-	{
-		perror("setsockopt: ");
-		close(sock);
-		return -1;
-	}
-	*/
-	
+		
 	return sock;
 }
 
